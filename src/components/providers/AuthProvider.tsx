@@ -90,7 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!res.ok) {
-        throw new Error('সার্ভার সেশন প্রতিষ্ঠা ব্যর্থ হয়েছে');
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'সার্ভার সেশন প্রতিষ্ঠা ব্যর্থ হয়েছে');
       }
 
       const data = await res.json();
