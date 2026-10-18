@@ -52,7 +52,9 @@ export async function verifyFirebaseToken(idToken: string): Promise<DecodedIdTok
     try {
       const parts = idToken.split('.');
       if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
+        let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const payload = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
         if (payload && (payload.sub || payload.uid)) {
           return {
             uid: payload.uid || payload.sub,

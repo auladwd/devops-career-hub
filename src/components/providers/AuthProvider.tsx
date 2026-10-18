@@ -114,10 +114,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     setLoading(true);
     try {
-      // Create a deterministic mock JWT for local development/isolation tests
-      const uid = 'usr_' + Buffer.from(demoEmail).toString('base64').replace(/=/g, '').slice(0, 16);
-      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(
+      // Safe base64url encoder for browser environments
+      const toBase64Url = (str: string) => {
+        try {
+          const utf8Bytes = new TextEncoder().encode(str);
+          let binary = '';
+          for (let i = 0; i < utf8Bytes.length; i++) {
+            binary += String.fromCharCode(utf8Bytes[i]);
+          }
+          return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        } catch {
+          return Buffer.from(str).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+      };
+
+      const uid = 'usr_' + toBase64Url(demoEmail).slice(0, 16);
+      const header = toBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+      const payload = toBase64Url(
         JSON.stringify({
           uid,
           sub: uid,
@@ -126,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${demoEmail}`,
           iat: Math.floor(Date.now() / 1000),
         })
-      ).toString('base64url');
+      );
       const mockIdToken = `${header}.${payload}.sig`;
 
       const res = await fetch('/api/auth/session', {
