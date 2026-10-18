@@ -24,8 +24,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" suppressHydrationWarning className={hindSiliguri.variable}>
-      <body className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans antialiased text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white">
+    <html lang="bn" suppressHydrationWarning className={`${hindSiliguri.variable} ${hindSiliguri.className}`}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className={`${hindSiliguri.className} min-h-screen bg-slate-50 dark:bg-slate-950 antialiased text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white`}>
         <ThemeProvider>
           <AuthProvider>
             {children}
