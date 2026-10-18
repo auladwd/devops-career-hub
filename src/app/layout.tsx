@@ -16,6 +16,13 @@ export const metadata: Metadata = {
   title: 'DevOps Career Hub | ক্যারিয়ার ও প্র্যাকটিস ট্র্যাকার',
   description:
     'DevOps জব অ্যাপ্লিকেশন, হ্যান্ডস-অন ল্যাব প্র্যাকটিস, লার্নিং রোডম্যাপ, ইন্টারভিউ প্রস্তুতি ও ক্যারিয়ার লক্ষ্য ব্যবস্থাপনার সম্পূর্ণ প্ল্যাটফর্ম।',
+  icons: {
+    icon: [
+      { url: '/favicon.svg?v=2', type: 'image/svg+xml' },
+      { url: '/favicon.ico?v=2' },
+    ],
+    apple: [{ url: '/apple-icon.svg?v=2' }],
+  },
 };
 
 export default function RootLayout({
@@ -26,6 +33,9 @@ export default function RootLayout({
   return (
     <html lang="bn" suppressHydrationWarning className={`${hindSiliguri.variable} ${hindSiliguri.className}`}>
       <head>
+        <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.ico?v=2" />
+        <link rel="apple-touch-icon" href="/apple-icon.svg?v=2" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

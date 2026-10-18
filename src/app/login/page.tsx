@@ -1,22 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Button } from '@/components/ui/Button';
-import { Server, ShieldCheck, ArrowLeft, Loader2, Sparkles, UserCheck } from 'lucide-react';
+import { Server, ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/Badge';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithDemo, user, loading } = useAuth();
+  const { signInWithGoogle, user, loading } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const router = useRouter();
 
-  if (user && !loading) {
-    router.push('/dashboard');
-    return null;
+  useEffect(() => {
+    if (user && !loading) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  if (loading || user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-4" />
+        <p className="text-sm font-medium text-slate-500 animate-pulse">লোড হচ্ছে...</p>
+      </div>
+    );
   }
 
   const handleGoogleLogin = async () => {
@@ -25,19 +35,7 @@ export default function LoginPage() {
       await signInWithGoogle();
       toast.success('সফলভাবে লগইন হয়েছে!');
     } catch (err: any) {
-      toast.error('গুগল লগইনে সমস্যা হয়েছে। অনুগ্রহ করে ফায়ারবেস কনফিগারেশন চেক করুন অথবা ডেমো টেস্ট একাউন্ট ব্যবহার করুন।');
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
-  const handleDemoLogin = async (email: string, name: string) => {
-    setIsSigningIn(true);
-    try {
-      await signInWithDemo(email, name);
-      toast.success(`${name} হিসেবে সফলভাবে প্রবেশ করেছেন!`);
-    } catch (err: any) {
-      toast.error('লগইন ব্যর্থ হয়েছে');
+      toast.error('গুগল লগইনে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন বা ফায়ারবেস কনফিগারেশন চেক করুন।');
     } finally {
       setIsSigningIn(false);
     }
@@ -71,7 +69,7 @@ export default function LoginPage() {
         </div>
 
         {/* Google Login Button */}
-        <div className="space-y-4">
+        <div>
           <Button
             variant="outline"
             size="lg"
@@ -103,42 +101,6 @@ export default function LoginPage() {
             )}
             গুগল (Google) দিয়ে সাইন-ইন করুন
           </Button>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white dark:bg-slate-900 px-3 text-slate-400">
-                অথবা টেস্ট ও যাচাইকরণ অ্যাকাউন্ট
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Demo Test Accounts for Verifying Data Isolation */}
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-2">
-              ডেটা আইসোলেশন পরীক্ষা করতে যেকোনো একটি টেস্ট অ্যাকাউন্ট নির্বাচন করুন:
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleDemoLogin('usera@devops.com', 'ইউজার এ (User A)')}
-                disabled={isSigningIn}
-                className="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all text-center"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-blue-500" />
-                User A হিসেবে লগইন
-              </button>
-              <button
-                onClick={() => handleDemoLogin('userb@devops.com', 'ইউজার বি (User B)')}
-                disabled={isSigningIn}
-                className="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all text-center"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
-                User B হিসেবে লগইন
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Privacy Note */}
