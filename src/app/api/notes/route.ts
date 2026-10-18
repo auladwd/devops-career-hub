@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/auth';
+import { getUserNotes, createNote } from '@/lib/db/notes';
+import { noteItemSchema } from '@/lib/validations';
+
+export async function GET(req: NextRequest) {
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    return NextResponse.json({ error: 'অননুমোদিত অ্যাক্সেস' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const category = searchParams.get('category') || undefined;
+  const search = searchParams.get('search') || undefined;
+
+  try {
+    const notes = await getUserNotes(user.uid, category, search);
+    return NextResponse.json(notes);
+  } catch (err: any) {
+    return NextResponse.json({ error: 'নোট লোড করতে সমস্যা হয়েছে' }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    return NextResponse.json({ error: 'অননুমোদিত অ্যাক্সেস' }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const validatedData = noteItemSchema.parse(body);
+
+    const newNote = await createNote(user.uid, validatedData as any);
+    return NextResponse.json({ success: true, data: newNote }, { status: 201 });
+  } catch (err: any) {
+    if (err.errors) {
+      return NextResponse.json(
+        { error: 'ভ্যালিডেশন ত্রুটি', details: err.errors.map((e: any) => e.message) },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: 'নোট সেভ করতে সমস্যা হয়েছে' }, { status: 500 });
+  }
+}
