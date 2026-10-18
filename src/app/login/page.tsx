@@ -35,7 +35,21 @@ export default function LoginPage() {
       await signInWithGoogle();
       toast.success('সফলভাবে লগইন হয়েছে!');
     } catch (err: any) {
-      toast.error('গুগল লগইনে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন বা ফায়ারবেস কনফিগারেশন চেক করুন।');
+      console.error('Login error details:', err);
+      if (err.code === 'auth/unauthorized-domain') {
+        toast.error(
+          'ডোমেন অনুমোদন সমস্যা: Firebase Console > Authentication > Settings > Authorized domains-এ আপনার Vercel ডোমেনটি যোগ করুন।',
+          { duration: 8000 }
+        );
+      } else if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/invalid-api-key') {
+        toast.error('Firebase API Key সঠিক নয়। Vercel Environment Variables সঠিকভাবে কনফিগার করা হয়েছে কিনা চেক করুন।', { duration: 6000 });
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        toast.info('লগইন পপ-আপ উইন্ডোটি বন্ধ করা হয়েছে।');
+      } else if (err.code === 'auth/popup-blocked') {
+        toast.warning('ব্রাউজার থেকে লগইন পপ-আপ ব্লক করা হয়েছে। অনুগ্রহ করে পপ-আপ অনুমতি দিন।');
+      } else {
+        toast.error(err.message || 'গুগল লগইনে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন বা ফায়ারবেস কনফিগারেশন চেক করুন।');
+      }
     } finally {
       setIsSigningIn(false);
     }
