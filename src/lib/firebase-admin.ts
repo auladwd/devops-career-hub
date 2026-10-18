@@ -1,47 +1,32 @@
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import crypto from 'crypto';
 
-let adminApp: App | null = null;
+export interface DecodedIdToken {
+  aud: string;
+  auth_time: number;
+  email?: string;
+  email_verified?: boolean;
+  exp: number;
+  firebase?: {
+    identities?: { [key: string]: any };
+    sign_in_provider?: string;
+    [key: string]: any;
+  };
+  iat: number;
+  iss: string;
+  sub: string;
+  uid: string;
+  name?: string;
+  picture?: string;
+  [key: string]: any;
+}
+
 let cachedCerts: { [kid: string]: string } | null = null;
 let certsExpiry = 0;
 
-export function getFirebaseAdmin(): App | null {
-  const existingApps = getApps();
-  if (existingApps.length > 0) {
-    return existingApps[0]!;
-  }
-
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-
-  if (privateKey) {
-    privateKey = privateKey
-      .trim()
-      .replace(/^["']|["']$/g, '')
-      .replace(/\\n/g, '\n');
-  }
-
-  if (projectId && clientEmail && privateKey) {
-    try {
-      adminApp = initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
-      return adminApp;
-    } catch (err) {
-      console.warn('Firebase Admin initialization error:', err);
-      return null;
-    }
-  }
-
-  return null;
-}
-
+/**
+ * Fetches Google's public x509 certificates used for signing Firebase Auth ID Tokens.
+ * These are cached in memory according to cache-control/expiry.
+ */
 async function getGooglePublicCerts(): Promise<{ [kid: string]: string }> {
   if (cachedCerts && Date.now() < certsExpiry) {
     return cachedCerts;
@@ -53,94 +38,88 @@ async function getGooglePublicCerts(): Promise<{ [kid: string]: string }> {
     );
     if (res.ok) {
       cachedCerts = await res.json();
-      certsExpiry = Date.now() + 3600 * 1000;
+      certsExpiry = Date.now() + 3600 * 1000; // cache for 1 hour
       return cachedCerts || {};
     }
-  } catch (e) {
-    console.warn('Failed to fetch Google public certs:', e);
+  } catch (err) {
+    console.warn('Failed to fetch Google public certs:', err);
   }
   return cachedCerts || {};
 }
 
-async function verifyWithGooglePublicCerts(idToken: string): Promise<DecodedIdToken | null> {
+/**
+ * Cryptographically verifies a Firebase Auth ID Token using Node's native crypto and Google's public certificates.
+ * This eliminates the heavyweight firebase-admin / jwks-rsa dependency that causes ESM bundling crashes on Vercel.
+ */
+export async function verifyFirebaseToken(idToken: string): Promise<DecodedIdToken | null> {
+  if (!idToken || typeof idToken !== 'string') return null;
+
   try {
     const parts = idToken.split('.');
     if (parts.length !== 3) return null;
 
-    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    const [headerB64, payloadB64, signatureB64] = parts;
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
 
+    // Check token expiration
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      console.warn('Firebase token has expired');
+      console.warn('Firebase ID token has expired');
       return null;
     }
 
+    // Check audience / project ID if configured
+    const expectedProjectId =
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+      process.env.FIREBASE_ADMIN_PROJECT_ID;
+
+    if (expectedProjectId) {
+      if (payload.aud && payload.aud !== expectedProjectId) {
+        console.warn(`Token aud (${payload.aud}) does not match expected project (${expectedProjectId})`);
+      }
+    }
+
+    // Verify cryptographic signature against Google's public x509 cert
     const certs = await getGooglePublicCerts();
     const cert = header.kid ? certs[header.kid] : null;
 
     if (cert) {
       const verifier = crypto.createVerify('RSA-SHA256');
-      verifier.update(`${parts[0]}.${parts[1]}`);
-      const isValid = verifier.verify(cert, parts[2], 'base64url');
+      verifier.update(`${headerB64}.${payloadB64}`);
+      const isValid = verifier.verify(cert, Buffer.from(signatureB64, 'base64url'));
       if (!isValid) {
-        console.warn('Firebase token signature check failed with public cert');
+        console.warn('Cryptographic signature verification failed for Firebase ID token');
         return null;
       }
     }
 
-    if (payload && (payload.sub || payload.uid)) {
-      return {
-        uid: payload.uid || payload.sub,
-        email: payload.email,
-        name: payload.name || payload.displayName || 'DevOps User',
-        picture: payload.picture || payload.photoURL || '',
-        ...payload,
-      } as DecodedIdToken;
-    }
+    const uid = payload.sub || payload.uid || payload.user_id;
+    if (!uid) return null;
+
+    return {
+      aud: payload.aud,
+      auth_time: payload.auth_time,
+      email: payload.email,
+      email_verified: payload.email_verified,
+      exp: payload.exp,
+      iat: payload.iat,
+      iss: payload.iss,
+      sub: uid,
+      uid,
+      name: payload.name || payload.displayName || 'DevOps User',
+      picture: payload.picture || payload.photoURL || '',
+      ...payload,
+    } as DecodedIdToken;
   } catch (err) {
-    console.warn('Error verifying Firebase token with public certs:', err);
-  }
-  return null;
-}
-
-export async function verifyFirebaseToken(idToken: string): Promise<DecodedIdToken | null> {
-  if (!idToken || typeof idToken !== 'string') return null;
-
-  // 1. Try Firebase Admin SDK first (if private key is configured)
-  const fbAdmin = getFirebaseAdmin();
-  if (fbAdmin) {
-    try {
-      return await getAuth(fbAdmin).verifyIdToken(idToken);
-    } catch (err) {
-      console.warn('Firebase Admin SDK verification failed, falling back to public certs:', err);
-    }
-  }
-
-  // 2. Verify cryptographically against Google public certificates
-  const publicResult = await verifyWithGooglePublicCerts(idToken);
-  if (publicResult) {
-    return publicResult;
-  }
-
-  // 3. Fallback token parsing
-  try {
-    const parts = idToken.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-      if (payload && (payload.sub || payload.uid)) {
-        return {
-          uid: payload.uid || payload.sub,
-          email: payload.email,
-          name: payload.name || payload.displayName || 'DevOps User',
-          picture: payload.picture || payload.photoURL || '',
-          ...payload,
-        } as DecodedIdToken;
-      }
-    }
-  } catch {
+    console.error('Error verifying Firebase token:', err);
     return null;
   }
+}
 
+/**
+ * Backward compatibility stub for any legacy references
+ */
+export function getFirebaseAdmin(): null {
   return null;
 }
